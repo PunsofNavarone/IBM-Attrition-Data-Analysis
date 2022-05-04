@@ -1,0 +1,652 @@
+---
+title: "Regression"
+author: "Group 11"
+date: "Word Document"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE}
+library(plyr)
+library(data.table)
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(VIM)
+library(DT)
+library(gridExtra)
+library(ggplot2)
+library(caret)
+library(Metrics)
+library(randomForest)
+library(pROC)
+library(e1071)
+library(dtree)
+library(corrplot)
+library(Amelia)
+library(caTools)
+library(caret)
+library(car)
+library(mice)
+library(missMethods)
+```
+
+
+```{r}
+
+#We first take out dataset and split it into data for both men and women
+attrition_data <- read.csv("C:/Users/karth/Desktop/572 project/IBM_Hrdata.csv")
+names(attrition_data)[1] <- "Age"
+#View(attrition_data)
+```
+
+
+
+```{r}
+df = read.csv("C:/Users/karth/Desktop/572 project/IBM_Hrdata.csv")
+names(df)[1] <- 'Age'
+```
+
+- Variables type:
+  - **Numeric variables**: 
+    - Related to personal information: age, distance_from_home, employee_number (id variable)
+    - Related to income: hourly_rate, daily_rate, monthly_rate, monthly_income, percent_salary_hike
+    - Related to time in company: years_at_company, years_in_current_role, years_since_last_promotion, years_with_curr_manager, total_working_years
+    - other: num_companies_worked, standard_hours(to delete), training_times_last_year, employee_count (to delete)
+  - **Categorical variables**: 
+    - **Binary variables**: attrition(target variable),gender, over18 (to delete),over_time
+    - **Nominal variables**: department, education_field, job_role, marital_status
+    - **Ordinal variables**: 
+      - Ordinal regarding satisfaction and performance : environment_satisfaction, job_satisfaction, relationship_satisfaction, work_life_balance,job_involvement,performance_rating
+      - Other ordinal: business_travel, education, job_level, stock_option_level
+
+
+
+#checking for the null values
+```{r}
+apply(is.na(df), 2, sum)
+```
+No null values in our data
+
+# CheckING for duplicated Record
+```{r}
+sum (is.na(duplicated(df)))
+```
+
+#Removing the variable which has only one value
+```{R}
+df$EmployeeNumber<- NULL
+df$StandardHours <- NULL
+df$Over18 <- NULL
+df$EmployeeCount <- NULL
+```
+
+
+```{r}
+df$Age_1 <- as.factor(
+        ifelse(df$Age<=25,"Young", ifelse(
+        df$Age<=50,"Middle-Age","Adult"
+        ))
+)
+table(df$Age_1)
+```
+
+
+
+#Visualization of Attrition
+```{r}
+df %>%
+        group_by(Attrition) %>%
+        tally() %>%
+        ggplot(aes(x = Attrition, y = n,fill=Attrition)) +
+        geom_bar(stat = "identity") +
+        theme_minimal()+
+        labs(x="Attrition", y="Count of Attriation")+
+        scale_fill_manual(values = c("#2febe7", "#6ce84a"))
+        ggtitle("Attrition")+
+        geom_text(aes(label = n), vjust = -0.5, position = position_dodge(0.9))
+```
+
+```{r}
+df %>%
+        ggplot(aes(x = BusinessTravel, group = Attrition)) + 
+        geom_bar(aes(y = ..prop.., fill = factor(..x..)), 
+                 stat="count", 
+                 alpha = 0.7) +
+        geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ), 
+                  stat= "count", 
+                  vjust = 2) +
+        labs(y = "Percentage", fill= "BusinessTravel") +
+        facet_grid(~Attrition) +
+        theme_minimal()+
+        theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+        ggtitle("Attrition")
+
+```
+
+```{r}
+df %>%
+        ggplot(aes(x = Gender, group = Attrition)) + 
+        geom_bar(aes(y = ..prop.., fill = factor(..x..)), 
+                 stat="count", 
+                 alpha = 0.7) +
+        geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ), 
+                  stat= "count", 
+                  vjust = 2) +
+        labs(y = "Percentage", fill= "Gender") +
+        facet_grid(~Attrition) +
+        theme_minimal()+
+        theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+        ggtitle("Attrition")
+
+
+```
+
+```{r}
+df %>%
+  ggplot(mapping = aes(x = MonthlyIncome)) + 
+  geom_histogram(aes(fill = Attrition), bins=20)+
+  labs(x="Monthlt Income", y="Number Attriation")+
+  ggtitle("Attrition in regards to Monthly Income")
+```
+
+```{r}
+
+ggplot(df, 
+        aes(x = OverTime, group = Attrition)) + 
+        geom_bar(aes(y = ..prop.., fill = factor(..x..)), 
+                   stat="count", 
+                   alpha = 0.7) +
+        geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ), 
+                   stat= "count", 
+                   vjust = -.5) +
+        labs(y = "Percentage", fill= "OverTime") +
+        facet_grid(~Attrition) +
+        scale_fill_manual(values = c("#3ff266","#0addf5")) + 
+        theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+        ggtitle("Attrition")
+```
+
+```{r}
+df %>%
+        ggplot(aes(x = Age_1, group = Attrition)) + 
+        geom_bar(aes(y = ..prop.., fill = factor(..x..)), 
+                 stat="count", 
+                 alpha = 0.7) +
+        geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ), 
+                  stat= "count", 
+                  vjust = 2) +
+        labs(y = "Percentage", fill= "BusinessTravel") +
+        facet_grid(~Attrition) +
+        theme_minimal()+
+        theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+        ggtitle("Attrition")
+
+```
+
+```{r}
+ggplot(df, 
+        aes(x= MaritalStatus,  group=Attrition)) + 
+        geom_bar(aes(y = ..prop.., fill = factor(..x..)), 
+                   stat="count", 
+                   alpha = 0.7) +
+        geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ), 
+                   stat= "count", 
+                   vjust = -.5) +
+        labs(y = "Percentage", fill="MaritalStatus") +
+        facet_grid(~Attrition) +
+        theme_minimal()+
+        theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+        ggtitle("Attrition")
+
+
+```
+
+
+```{r}
+ggplot(df, 
+        aes(x= StockOptionLevel,  group=Attrition)) + 
+        geom_bar(aes(y = ..prop.., fill = factor(..x..)), 
+                   stat="count", 
+                   alpha = 0.7) +
+        geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ), 
+                   stat= "count", 
+                   vjust = -.5) +
+        labs(y = "Percentage", fill="StockOptionLevel") +
+        facet_grid(~Attrition) +
+        theme_minimal()+
+        theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+        ggtitle("Attrition")
+
+```
+
+```{r}
+ggplot(df, 
+        aes(x= JobRole,  group=Attrition)) + 
+        geom_bar(aes(y = ..prop.., fill = factor(..x..)), 
+                   stat="count", 
+                   alpha = 0.7) +
+        geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ), 
+                   stat= "count", 
+                   vjust = -.5) +
+        labs(y = "Percentage", fill="JobRole") +
+        facet_grid(~Attrition) +
+        theme_minimal()+
+        theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+        ggtitle("Attrition")
+
+```
+Lab tec and Sales rep
+
+
+```{r}
+ggplot(df, 
+        aes(x= EducationField,  group=Attrition)) + 
+        geom_bar(aes(y = ..prop.., fill = factor(..x..)), 
+                   stat="count", 
+                   alpha = 0.7) +
+        geom_text(aes(label = scales::percent(..prop..), y = ..prop.. ), 
+                   stat= "count", 
+                   vjust = -.5) +
+        labs(y = "Percentage", fill="EducationField") +
+        facet_grid(~Attrition) +
+        theme_minimal()+
+        theme(legend.position = "none", plot.title = element_text(hjust = 0.5)) + 
+        ggtitle("Attrition")
+
+
+```
+No much effect of eduction feild on Attrition
+
+- The section of worker who are the most like to churn:
+  1. Young
+  2. Low salary
+  3. Working overtime
+  4. Single
+  5. Working as a sales rep or a lab tech
+  6. Has a low overall satisfaction level
+  7. Travels frequently
+  8. Has stock level set to 0
+
+
+The next step aims at studying the correlation among the attributes. For this we require all attributes to have either numeric or integer values. 
+
+
+```{r}
+df$Age_1  <-  NULL
+View(df)
+```
+
+
+
+
+### Dummy Coding IBM Dataset
+The next step aims at studying the correlation among the attributes. For this we require all attributes to have either numeric or integer values.We choose to dummy code the nominal variables in the dataset. Below, we use a series of if-then statement to convert nominal variables to create dummy variables.
+
+```{r}
+# fastDummies is used to create dummy variables
+library(fastDummies)
+results_dummy <- fastDummies::dummy_cols(df, remove_most_frequent_dummy = T,)
+
+results_dummy[,c("Attrition","BusinessTravel","Department","EducationField","Gender","JobRole",
+      "MaritalStatus","Over18","OverTime")]=NULL
+```
+
+
+```{r fig2, fig.height = 20, fig.width = 20, fig.align = "center"}
+library(corrplot)
+
+numeric.var <- sapply(results_dummy, is.numeric)
+corr.matrix <- cor(results_dummy[,numeric.var])
+corrplot(corr.matrix, main = '\n\n Correlation plot for Numeric Variables',
+         method = "number")
+```
+
+
+High Correlation Results:
+
+JobLevel:MonthlyIncome (.95 correlation)
+Department_HR:Joberole_HR(.90)
+Department_HR:Edfeild_HR(0.65)
+Department_Sales:Jobrole_salesrExec(.81)
+JobLevel:TotalWorkingYears (.78)
+TotalWorkingYears:Monthly income(0.77)
+PercentSalaryHike:PerformanceRating (.77)
+YearsWithCurrManager:YearsAtCompany(.77)
+MonthlyIncome:TotalWorkingYears (.77)
+YearsWithCurrManager:YearsInCurrentRole(.71)
+Yearsincurrentrole:Yearsatcompany(0.76)
+Yearsincurrentrole:YearsWithCurrManager(0.71)
+Age:TotalWorkingYears(.68) **
+YearsAtCompany:MonthlyIncome (.514)
+YearsWithCurrManager:YearsSinceLastPromotion(.510)**
+Age:JobLevel (.509)
+Age: MonthlyIncome (.498)
+YearsWithCurrManager:TotalWorkingYears(.459)
+
+
+
+
+
+We can remove the following variables from our data.
+1)JobLevel
+2)Department_HR
+3)Department_Sales
+4)TotalWorkingYears
+5)PerformanceRating
+6)YearsWithCurrManager
+7)Yearsincurrentrole
+8)YearsAtCompany
+
+
+#Removing the variable which are correlated to other features.
+
+```{r}
+results_dummy$JobLevel <- NULL
+results_dummy$Department_HR = NULL
+results_dummy$Department_Sales = NULL
+results_dummy$TotalWorkingYears = NULL
+results_dummy$PerformanceRating = NULL
+results_dummy$YearsWithCurrManager = NULL
+results_dummy$YearsInCurrentRole = NULL
+results_dummy$YearsAtCompany = NULL
+
+```
+
+```{r}
+names(results_dummy)
+
+```
+
+
+
+```{r}
+
+colnames(results_dummy)[19] <- "BusinessTravel_Non_Travel"
+colnames(results_dummy)[21] <- "Department_Human_Resources"
+colnames(results_dummy)[22] <- "EducationField_Human_Resources"
+colnames(results_dummy)[26] <- "EducationField_Technical_Degree" 
+colnames(results_dummy)[28] <- "JobRole_Healthcare_Representative"
+colnames(results_dummy)[29] <- "JobRole_Human_Resources"
+colnames(results_dummy)[30] <- "JobRole_Laboratory_Technician"
+colnames(results_dummy)[32] <- "JobRole_Manufacturing_Director"
+colnames(results_dummy)[33] <- "JobRole_Research_Director"
+colnames(results_dummy)[34] <- "JobRole_Research_Scientist"
+colnames(results_dummy)[35] <- "JobRole_Sales_Representative"
+
+
+```
+### Spliting the data
+```{r echo=FALSE}
+library(caret)
+
+set.seed(100)
+# Creating training and test index, 70% data is training data and 30% data is test data
+set.seed(100)
+# Creating training and test index, 70% data is training data and 30% data is test data
+trainIndex <- createDataPartition(results_dummy$Attrition_Yes, p=0.7, 
+                                  list=FALSE)
+str(trainIndex)
+
+# Creating training data
+X_train <- results_dummy[trainIndex,]
+# Creating test data
+X_test <- results_dummy[-trainIndex,]
+
+
+X_train$Attrition_Yes <- as.factor(X_train$Attrition_Yes)
+X_test$Attrition_Yes <- as.factor(X_test$Attrition_Yes)
+
+```
+
+### Outliers deduction
+
+```{r}
+
+cont_vars <- c("Age", "DailyRate","DistanceFromHome","HourlyRate","MonthlyIncome","MonthlyRate",
+               "NumCompaniesWorked","PercentSalaryHike","TrainingTimesLastYear"
+               ,  "YearsSinceLastPromotion","YearsWithCurrManager")
+library(data.table)
+library(reshape2)
+# Distribution of continious variables across attrition
+library(data.table)
+library(reshape2)
+outdata = fread("C:/Users/karth/Desktop/572 project/IBM_Hrdata.csv")
+# Distribution of continious variables across attrition
+melt_attrition_dat <- melt(outdata[,c("Attrition", cont_vars),with=FALSE], id.var = "Attrition")
+p <- ggplot(data = melt_attrition_dat , aes(x=variable, y=value)) + geom_boxplot(fill="lightYellow")
+p <- p + facet_wrap( ~ variable, scales="free")+theme_minimal()
+p
+
+```
+
+#Outliers Treatement
+```{r}
+#As our data points are less then less then 1500 data points we can't remove the outliers. therefore we can use capping techinique to remove outliers
+
+#Outliers Treatement
+boxplot(X_train$Age)
+boxplot(X_train$DailyRate)
+boxplot(X_train$DistanceFromHome)
+boxplot(X_train$HourlyRate)
+bx<-boxplot(X_train$MonthlyIncome)
+
+hist(log(X_train$MonthlyIncome))
+X_train$MonthlyIncome<-ifelse(X_train$MonthlyIncome>15000,15000,X_train$MonthlyIncome)
+boxplot(X_train$MonthlyIncome)
+
+X_train$NumCompaniesWorked<-ifelse(X_train$NumCompaniesWorked>7.5,7.5,X_train$NumCompaniesWorked)
+bx4<-boxplot(X_train$NumCompaniesWorked)
+bx4$stats
+X_train$YearsSinceLastPromotion<-ifelse(X_train$YearsSinceLastPromotion>5,5,X_train$YearsSinceLastPromotion)
+bx4<-boxplot(X_train$YearsSinceLastPromotion)
+
+
+X_train$TrainingTimesLastYear<-ifelse(X_train$TrainingTimesLastYear>4,4,X_train$TrainingTimesLastYear)
+X_train$TrainingTimesLastYear<-ifelse(X_train$TrainingTimesLastYear<1,1,X_train$TrainingTimesLastYear)
+bx4<-boxplot(X_train$TrainingTimesLastYear)
+
+```
+
+```{r}
+#Multicollinearity occurs when two or more explanatory variables are highly correlated to each other, 
+#such that they do not provide unique or independent information in the regression model. 
+#If the degree of correlation is high enough between variables, it can cause problems when fitting and 
+#interpreting the model. Therefore we remove the multi_collinearity using VIF function threshold value as 3
+
+library(car)
+model_1 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+vif(model_1)
+
+X_train <- subset(X_train, select = - c(MonthlyIncome))
+X_test <- subset(X_test, select = - c(MonthlyIncome))
+
+#Model2
+model_2 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+vif(model_2)
+
+```
+
+
+
+#Removing the feature which has highest P-value,performing stepwise regression
+```{r}
+#Removing the feature which has highest P-value
+model_2 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+X_train <- subset(X_train, select = - c(Department_Human_Resources))
+X_test <- subset(X_test, select = - c(Department_Human_Resources))
+
+model_3 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+summary(model_3)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(PercentSalaryHike))
+X_test <- subset(X_test, select = - c(PercentSalaryHike))
+
+model_4 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(MonthlyRate))
+X_test <- subset(X_test, select = - c(MonthlyRate))
+
+
+model_5 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(EducationField_Marketing))
+X_test <- subset(X_test, select = - c(EducationField_Marketing))
+
+model_6 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(HourlyRate))
+X_test <- subset(X_test, select = - c(HourlyRate))
+
+model_7 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(MaritalStatus_Divorced))
+X_test <- subset(X_test, select = - c(MaritalStatus_Divorced))
+
+model_8 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(JobRole_Human_Resources))
+X_test <- subset(X_test, select = - c(JobRole_Human_Resources))
+
+model_9 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(EducationField_Medical))
+X_test <- subset(X_test, select = - c(EducationField_Medical))
+
+model_10 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(DailyRate))
+X_test <- subset(X_test, select = - c(DailyRate))
+
+model_11 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(EducationField_Other))
+X_test <- subset(X_test, select = - c(EducationField_Other))
+
+model_12 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(TrainingTimesLastYear))
+X_test <- subset(X_test, select = - c(TrainingTimesLastYear))
+
+model_13 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(JobRole_Research_Scientist))
+X_test <- subset(X_test, select = - c(JobRole_Research_Scientist))
+
+model_14 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(Education))
+X_test <- subset(X_test, select = - c(Education))
+
+model_15 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(BusinessTravel_Non_Travel))
+X_test <- subset(X_test, select = - c(BusinessTravel_Non_Travel))
+
+model_16 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(YearsSinceLastPromotion))
+X_test <- subset(X_test, select = - c(YearsSinceLastPromotion))
+
+model_17 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(StockOptionLevel))
+X_test <- subset(X_test, select = - c(StockOptionLevel))
+
+model_18 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(Gender_Female))
+X_test <- subset(X_test, select = - c(Gender_Female))
+
+model_19 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+
+#Removing the feature which has highest P-value
+X_train <- subset(X_train, select = - c(JobRole_Manager))
+X_test <- subset(X_test, select = - c(JobRole_Manager))
+
+model_20 <- glm( Attrition_Yes~., data = X_train, family=binomial)
+summary(model_20)
+
+
+
+
+```
+
+
+```{r}
+# Model evaluation for glm
+
+# Getting predictions for test data
+predictions <- predict(model_20, X_test,type="response")
+dim(X_test)
+predictions<-ifelse(predictions>0.5,1,0)
+
+confusionMatrix(table(X_test$Attrition_Yes,predictions))
+
+```
+
+
+```{r}
+library(pROC)
+
+predictions <- predict(model_20, X_test,type = 'response')
+
+#apply roc function
+analysis <- roc(response=X_test$Attrition_Yes, predictor=predictions)
+
+#Find t that minimizes error
+e <- cbind(analysis$thresholds,analysis$sensitivities+analysis$specificities)
+opt_t <- subset(e,e[,2]==max(e[,2]))[,1]
+
+#Plot ROC Curve
+plot(1-analysis$specificities,analysis$sensitivities,type="l",
+     ylab="Sensitiviy",xlab="1-Specificity",col="black",lwd=2,
+     main = "ROC Curve for Simulated Data")
+abline(a=0,b=1)
+abline(v = opt_t) #add optimal t to ROC curve
+opt_t #print t
+```
+
+```{r}
+predictions<-ifelse(predictions>0.5,1,0)
+result.roc <- roc(X_test$Attrition_Yes, as.numeric(as.character(predictions))) 
+plot(result.roc)
+# Displaying area under the curve for test data
+result.roc
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

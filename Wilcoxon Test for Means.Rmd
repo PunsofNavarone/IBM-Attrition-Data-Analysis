@@ -1,0 +1,105 @@
+---
+title: "Hypothesis Test 1 for Employee Data Set"
+output: word_document
+---
+
+```{r}
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+```
+The question we wish to answer with our first hypothesis is - is there a significant difference between men and women when it comes to a yearly PercentageSalaryHike (PSH).
+
+This is a non trivial problem for any company as a gender wage gap would lead to loss in talent.
+
+```{r}
+
+#We first take out dataset and split it into data for both men and women
+attrition_data <- read.csv('C:\\Users\\bcava\\Desktop\\AMS572 Project\\WA_Fn-UseC_-HR-Employee-Attrition.csv')
+names(attrition_data)[1] <- "Age"
+#View(attrition_data)
+```
+
+
+
+First, let us do our Exploratory Data Analysis (EDA)
+
+```{r}
+TAB <- table(attrition_data$Gender, attrition_data$PercentSalaryHike)
+TAB
+```
+
+```{r}
+
+barplot(TAB, beside = T, legend = T)
+```
+
+
+We are NOW going to do a hypothesis test for two sample means - We will take the mean of the PercentSalaryHike (PSH) for both men and women and see if there is any significant difference
+
+If we consider the mean of men's PSH to be u1 and the mean of women's PSH to be u2 then our hypothesis is 
+H0 : u1 equals u2 (u1-u2 = 0)
+H1 : u1 not equal to u2 (u1- u2 != 0)
+
+
+We split our data into male and female 
+
+
+```{r}
+X<-split(attrition_data, attrition_data$Gender)
+#View(X$Female)
+#View(X$Male)
+
+```
+
+Firstly, we need to check for normality on our data. We will conduct a Shapiro Wilks test on our data to see if we can consider this data to have a normal distribution
+```{r}
+shapiro.test(X$Male$PercentSalaryHike)
+shapiro.test(X$Female$PercentSalaryHike)
+summary(X$Male$PercentSalaryHike)
+summary(X$Female$PercentSalaryHike)
+```
+
+As we can see, the p value is much lesser than 0.05 so this does not follow a normal distribution
+
+Test of Normality II - visual
+```{r}
+library(ggplot2)
+library(ggpubr)
+ggdensity(X$Male$PercentSalaryHike, main = "Normality", xlab = "PSH for men")
+ggdensity(X$Female$PercentSalaryHike, main = "Normality", xlab = "PSH for women")
+```
+
+Since our data is so large and is still not normally distributed, we will follow a Wilcoxon Rank-Sum Test (Or Man Whiteney Test) to test our hypothesis
+
+```{r}
+summary(X$Male$PercentSalaryHike)
+summary(X$Female$PercentSalaryHike)
+```
+Visualizing our data with boxplots
+```{r}
+ggboxplot(
+  attrition_data,
+  x= "Gender",
+  y = "PercentSalaryHike",
+  combine = FALSE,
+  merge = FALSE,
+  color = "black",
+  fill = "#E7B800",
+  palette = NULL,
+  title = "BoxPlot Comparison of PSH",
+  xlab = "Gender",
+  ylab = "PSH")
+```
+
+
+
+
+```{r}
+wilcox.test(X$Male$PercentSalaryHike,X$Female$PercentSalaryHike ) 
+```
+The p-value here is 0.7043 which is much higher than our alpha value of 0.1 for a 10% significance level so we cannot reject the null hypothesis 
+
+Hence we cannot conclude that there is any major difference between men and women when it comes to a percentage salary hike - This is important as if we just look at our EDA, we may assume that there is a significant difference
+
+---

@@ -1,0 +1,150 @@
+---
+title: "R Notebook"
+output: word_document
+---
+
+
+```{r setup, include= FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(plyr)
+library(data.table)
+library(dplyr)
+library(VIM)
+library(DT)
+library(gridExtra)
+library(ggplot2)
+library(caret)
+library(Metrics)
+library(randomForest)
+library(pROC)
+library(e1071)
+library(dtree)
+library(corrplot)
+library(Amelia)
+library(caTools)
+library(caret)
+library(car)
+library(mice)
+library(missMethods)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+```{r}
+attrition_data <- read.csv('C:\\Users\\bcava\\Desktop\\AMS572 Project\\WA_Fn-UseC_-HR-Employee-Attrition.csv')
+names(attrition_data)[1] <- "Age"
+```
+
+- Variables type:
+  - **Numeric variables**: 
+    - Related to personal information: age, distance_from_home, employee_number (id variable)
+    - Related to income: hourly_rate, daily_rate, monthly_rate, monthly_income, percent_salary_hike
+    - Related to time in company: years_at_company, years_in_current_role, years_since_last_promotion, years_with_curr_manager, total_working_years
+    - other: num_companies_worked, standard_hours(to delete), training_times_last_year, employee_count (to delete)
+  - **Categorical variables**: 
+    - **Binary variables**: attrition(target variable),gender, over18 (to delete),over_time
+    - **Nominal variables**: department, education_field, job_role, marital_status
+    - **Ordinal variables**: 
+      - Ordinal regarding satisfaction and performance : environment_satisfaction, job_satisfaction, relationship_satisfaction, work_life_balance,job_involvement,performance_rating
+      - Other ordinal: business_travel, education, job_level, stock_option_level
+
+
+
+#checking for the null values
+```{r}
+apply(is.na(attrition_data), 2, sum)
+```
+No null values in our data
+
+# CheckING for duplicated Record
+```{r}
+sum (is.na(duplicated(attrition_data)))
+```
+
+
+### Converting Categerical data into factors
+```{r}
+attrition_data$BusinessTravel = as.factor(attrition_data$BusinessTravel)
+attrition_data$Department = as.factor(attrition_data$Department)
+attrition_data$Gender = as.factor(attrition_data$Gender)
+attrition_data$JobRole = as.factor(attrition_data$JobRole)
+attrition_data$MaritalStatus = as.factor(attrition_data$MaritalStatus)
+attrition_data$OverTime = as.factor(attrition_data$OverTime)
+attrition_data$EducationField = as.factor(attrition_data$EducationField)
+attrition_data$Attrition = as.factor(attrition_data$Attrition)
+str(attrition_data)
+
+```
+
+```{r}
+library(mice)
+
+```
+
+```{r}
+
+dwm <- attrition_data #Created a copy so imputation can be compared with the original
+
+TAB <- table(dwm$Gender, dwm$PercentSalaryHike)
+TAB
+```
+
+
+```{r}
+
+#Removing the 20% of the data who has the PercentSalaryHike as 11
+
+dwm <- delete_MNAR_censoring(dwm, 0.2,"PercentSalaryHike")
+```
+
+
+```{r}
+sapply(dwm, function(x) sum(is.na(x)))
+```
+
+
+
+
+```{r}
+
+init = mice(dwm, maxit=0) 
+meth = init$method
+predM = init$predictorMatrix
+```
+
+```{r}
+
+#Variables to predict
+meth[c("PercentSalaryHike")]="norm" 
+#View(dwm)
+
+```
+
+
+```{r}
+set.seed(45)
+imputed = mice(dwm, predictorMatrix=predM, m=40, seed=10, meth = 'pmm')
+imputed$meth
+```
+
+```{r}
+#View(dwm)
+imputed <- complete(imputed)
+sapply(imputed, function(x) sum(is.na(x)))
+```
+
+
+```{r}
+X<-split(imputed, imputed$Gender)
+```
+
+```{r}
+wilcox.test(X$Male$PercentSalaryHike,X$Female$PercentSalaryHike ) 
+summary(X$Male$PercentSalaryHike)
+summary(X$Female$PercentSalaryHike)
+```
+
+

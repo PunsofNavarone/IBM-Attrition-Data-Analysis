@@ -1,0 +1,85 @@
+---
+title: "R Notebook"
+output: word_document
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+install.packages("mice")
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+library(mice)
+
+```
+
+```{r}
+attrition_data <- read.csv('C:\\Users\\bcava\\Desktop\\AMS572 Project\\WA_Fn-UseC_-HR-Employee-Attrition.csv')
+names(attrition_data)[1] <- "Age"
+#View(attrition_data)
+
+```
+
+```{r}
+attrition_data$Gender = as.factor(attrition_data$Gender)
+sapply(attrition_data, function(x) sum(is.na(x)))
+dwm <- attrition_data #Created a copy so imputation can be compared with the original
+
+```
+
+```{r}
+set.seed(100)
+#dwm[sample(1:nrow(dwm), floor(runif(1, min=70, max=100))), "Gender"] <- NA
+dwm[sample(1:nrow(dwm), floor(runif(1, min=70, max=100))), "PercentSalaryHike"] <- NA
+
+
+sapply(dwm, function(x) sum(is.na(x)))
+#View(dwm)
+
+```
+```{r}
+library(mice)
+init = mice(dwm, maxit=0) 
+meth = init$method
+predM = init$predictorMatrix
+```
+
+```{r}
+
+#Variables to predict
+meth[c("PercentSalaryHike")]="norm" 
+#meth[c("Gender")]="logreg" 
+#View(dwm)
+
+```
+
+
+```{r}
+set.seed(45)
+imputed = mice(dwm, predictorMatrix=predM, m=30, meth = 'pmm')
+imputed$meth
+```
+
+```{r}
+#View(dwm)
+imputed <- complete(imputed)
+sapply(imputed, function(x) sum(is.na(x)))
+```
+```{r}
+X<-split(imputed, imputed$Gender)
+```
+
+```{r}
+wilcox.test(X$Male$PercentSalaryHike,X$Female$PercentSalaryHike ) 
+summary(X$Male$PercentSalaryHike)
+summary(X$Female$PercentSalaryHike)
+```
